@@ -54,7 +54,7 @@ use ton_block::{
     ExternalInboundMessageHeader, InternalMessageHeader, MsgAddressIntOrNone, ConfigParams
 };
 use ton_types::{SliceData, Result, Status, AccountId, UInt256, BocWriter};
-use ton_labs_assembler::{Line, compile_code_to_cell};
+use ton_labs_assembler::{compile_code_to_cell};
 
 use abi::{build_abi_body, decode_body, load_abi_json_string, load_abi_contract};
 use keyman::KeypairManager;
@@ -495,7 +495,7 @@ fn run_test_subcmd(matches: &ArgMatches) -> Status {
                 None => None
             };
 
-            let line = Line::new(hex_str, "", 0);
+            let line = hex_str;
             let resolved = resolve_name(&line, |name| {
                 let id = match &parse_results {
                     Some(parse_results) => parse_results.global_by_name(name),
@@ -505,7 +505,7 @@ fn run_test_subcmd(matches: &ArgMatches) -> Status {
             })
             .map_err(|e| format_err!("failed to resolve body {}: {}", hex_str, e))?;
 
-            let (buf, buf_bits) = decode_hex_string(resolved.text)?;
+            let (buf, buf_bits) = decode_hex_string(resolved)?;
             let body = SliceData::from_raw(buf, buf_bits);
             (Some(body), Some(matches.value_of("SIGN")))
         },

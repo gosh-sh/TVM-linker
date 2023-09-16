@@ -18,7 +18,6 @@ use ton_types::{BuilderData, IBitstring, SliceData, Cell, Result, Status};
 use ton_types::dictionary::{HashmapE, HashmapType};
 use ton_vm::stack::integer::{IntegerData, serialization::{Encoding, SignedIntegerBigEndianEncoding}};
 use ton_vm::stack::serialization::Serializer;
-use ton_labs_assembler::{DbgPos, Line, Lines, lines_to_string};
 
 use abi_json::Contract;
 use failure::{format_err, bail};
@@ -41,16 +40,16 @@ impl ParseEngineResults {
             engine: parser
         }
     }
-    pub fn entry(&self) -> Lines {
+    pub fn entry(&self) -> Vec<String> {
         self.engine.entry()
     }
-    pub fn publics(&self) -> HashMap<u32, Lines> {
+    pub fn publics(&self) -> HashMap<u32, Vec<String>> {
         self.engine.publics()
     }
-    pub fn privates(&self) -> HashMap<u32, Lines> {
+    pub fn privates(&self) -> HashMap<u32, Vec<String>> {
         self.engine.privates()
     }
-    pub fn internals(&self) -> HashMap<i32, Lines> {
+    pub fn internals(&self) -> HashMap<i32, Vec<String>> {
         self.engine.internals()
     }
     pub fn global_name(&self, id: u32) -> Option<String> {
@@ -59,7 +58,7 @@ impl ParseEngineResults {
     pub fn internal_name(&self, id: i32) -> Option<String> {
         self.engine.internal_name(id)
     }
-    pub fn global_by_name(&self, name: &str) -> Option<(u32, Lines)> {
+    pub fn global_by_name(&self, name: &str) -> Option<(u32, Vec<String>)> {
         self.engine.global_by_name(name)
     }
     pub fn persistent_data(&self) -> (i64, Option<Cell>) {
@@ -74,7 +73,7 @@ impl ParseEngineResults {
     pub fn func_upgrade(&self) -> SelectorVariant {
         self.engine.func_upgrade()
     }
-    pub fn fragments(&self) -> &BTreeMap<String, Lines> {
+    pub fn fragments(&self) -> &BTreeMap<String, Vec<String>> {
         &self.engine.macro_name_to_lines
     }
     pub fn postorder_fragments(&self) -> &Vec<String> {
@@ -91,7 +90,7 @@ pub fn ptr_to_builder(n: Ptr) -> Result<BuilderData> {
 #[derive(Clone)]
 struct InternalFunc {
     pub id: u32,
-    pub body: Lines,
+    pub body: Vec<String>,
     // function ids that this function calls from its body
     pub called_ids: Vec<u32>,
 }
@@ -258,11 +257,11 @@ pub struct ParseEngine {
     globl_name_to_object: BTreeMap<String, GloblFuncOrData>,
 
     /// name -> code
-    macro_name_to_lines: BTreeMap<String, Lines>,
+    macro_name_to_lines: BTreeMap<String, Vec<String>>,
     postorder_fragments: Vec<String>,
 
     /// selector code
-    entry_point: Lines,
+    entry_point: Vec<String>,
     /// Selector variant
     func_upgrade: SelectorVariant,
     ///
@@ -280,7 +279,7 @@ pub struct ParseEngine {
     /// Contract ABI info, used for correct function id calculation
     abi: Option<Contract>,
     // for lazy calculation .compute expressions
-    computed: HashMap<String, Lines>,
+    computed: HashMap<String, Vec<String>>,
 }
 
 lazy_static! {
@@ -386,11 +385,11 @@ impl ParseEngine {
         self.build_data()
     }
 
-    fn entry(&self) -> Lines {
+    fn entry(&self) -> Vec<String> {
         self.entry_point.clone()
     }
 
-    fn internals(&self) -> HashMap<i32, Lines> {
+    fn internals(&self) -> HashMap<i32, Vec<String>> {
         self.internal_id_to_code
             .iter()
             .map(|(&id, func)| (id, func.body.clone()))
@@ -404,15 +403,15 @@ impl ParseEngine {
             .map(|(name, _)| name.clone())
     }
 
-    fn publics(&self) -> HashMap<u32, Lines> {
+    fn publics(&self) -> HashMap<u32, Vec<String>> {
         self.globals(true)
     }
 
-    fn privates(&self) -> HashMap<u32, Lines> {
+    fn privates(&self) -> HashMap<u32, Vec<String>> {
         self.globals(false)
     }
 
-    fn globals(&self, public: bool) -> HashMap<u32, Lines> {
+    fn globals(&self, public: bool) -> HashMap<u32, Vec<String>> {
         self.globl_name_to_object
             .iter()
             .filter_map(|(_, global)| {
@@ -432,7 +431,7 @@ impl ParseEngine {
             .map(|(name, _)| name.clone())
     }
 
-    fn global_by_name(&self, name: &str) -> Option<(u32, Lines)> {
+    fn global_by_name(&self, name: &str) -> Option<(u32, Vec<String>)> {
         self.globl_name_to_object.get(name).and_then(|global| {
             global.dtype.func().map(|func| (func.id, func.body.clone()))
         })
@@ -501,7 +500,7 @@ impl ParseEngine {
         let mut obj_name = String::new();
         let mut lnum = 0;
         let mut l = String::new();
-        let mut source_pos: Option<DbgPos> = None;
+        // let mut source_pos: Option<DbgPos> = None;
 
         self.globl_ptr = self.globl_base + OFFSET_GLOBL_DATA;
         self.persistent_ptr = self.persistent_base + OFFSET_PERS_DATA;
@@ -518,10 +517,10 @@ impl ParseEngine {
                 l += "\n";
             }
 
-            let pos = match source_pos.clone() {
-                None => DbgPos { filename: filename.clone(), line: lnum, line_code: lnum },
-                Some(pos) => pos
-            };
+            // let pos = match source_pos.clone() {
+            //     None => DbgPos { filename: filename.clone(), line: lnum },
+            //     Some(pos) => pos
+            // };
 
             if starts_with(&l, ".p2align") ||
                starts_with(&l, ".align") ||
@@ -628,15 +627,15 @@ impl ParseEngine {
             } else if LABEL_REGEX.is_match(&l) {
                 // TODO
                 // ignore labels
-            } else if starts_with(&l, ".loc") {
-                let cap = LOC_REGEX.captures(&l).unwrap();
-                let filename = String::from(cap.get(1).unwrap().as_str());
-                let line = cap.get(2).unwrap().as_str().parse::<usize>().unwrap();
-                if line == 0 { // special value for resetting current source pos
-                    source_pos = None;
-                } else {
-                    source_pos = Some(DbgPos { filename, line, line_code: lnum });
-                }
+            // } else if starts_with(&l, ".loc") {
+                // let cap = LOC_REGEX.captures(&l).unwrap();
+                // let filename = String::from(cap.get(1).unwrap().as_str());
+                // let line = cap.get(2).unwrap().as_str().parse::<usize>().unwrap();
+                // if line == 0 { // special value for resetting current source pos
+                //     source_pos = None;
+                // } else {
+                //     source_pos = Some(DbgPos { filename, line });
+                // }
             } else if
                 starts_with(&l, ".blob") ||
                 starts_with(&l, ".cell") ||
@@ -649,9 +648,9 @@ impl ParseEngine {
                 starts_with(&l, ".asciz") ||
                 starts_with(&l, ".compute") {
                 // .param [value]
-                obj_body.push(Line { text: l.clone(), pos })
+                obj_body.push(l.clone())
             } else {
-                obj_body.push(Line { text: l.clone(), pos });
+                obj_body.push(l.clone());
             }
             l.clear();
         }
@@ -665,11 +664,11 @@ impl ParseEngine {
         Ok(())
     }
 
-    fn compat_rename_macro_calls(lines: &mut Lines) {
+    fn compat_rename_macro_calls(lines: &mut Vec<String>) {
         for line in lines {
-            if starts_with(&line.text, "CALL $") {
-                let name = CALL_REGEX.captures(&line.text).unwrap().get(1).unwrap().as_str().to_string();
-                line.text = format!(".inline __{}\n", name);
+            if starts_with(line, "CALL $") {
+                let name = CALL_REGEX.captures(line).unwrap().get(1).unwrap().as_str().to_string();
+                *line = format!(".inline __{}\n", name);
             }
         }
     }
@@ -689,10 +688,10 @@ impl ParseEngine {
         Ok(())
     }
 
-    fn resolve_fragment_lines(&mut self, lines: Lines, visited: &mut HashMap<String, bool>) -> Status {
+    fn resolve_fragment_lines(&mut self, lines: Vec<String>, visited: &mut HashMap<String, bool>) -> Status {
         for line in lines {
-            if starts_with(&line.text, ".inline ") {
-                let next_name = INLINE_REGEX.captures(&line.text).unwrap().get(1).unwrap().as_str().to_string();
+            if starts_with(&line, ".inline ") {
+                let next_name = INLINE_REGEX.captures(&line).unwrap().get(1).unwrap().as_str().to_string();
                 if self.macro_name_to_lines.get(&next_name).is_some() {
                     self.resolve_fragment(&next_name, visited)?;
                 }
@@ -735,11 +734,11 @@ impl ParseEngine {
         }
     }
 
-    fn replace_labels_in_body(&mut self, lines: Lines, obj_name: FunctionId) -> Result<Lines> {
+    fn replace_labels_in_body(&mut self, lines: Vec<String>, obj_name: FunctionId) -> Result<Vec<String>> {
         let mut new_lines = vec![];
         for line in lines {
-            if starts_with(&line.text, ".compute") {
-                let name = COMPUTE_REGEX.captures(&line.text).unwrap().get(1).unwrap().as_str();
+            if starts_with(&line, ".compute") {
+                let name = COMPUTE_REGEX.captures(&line).unwrap().get(1).unwrap().as_str();
                 let mut resolved = self.compute_cell(name)?;
                 new_lines.append(&mut resolved);
                 continue
@@ -747,7 +746,7 @@ impl ParseEngine {
 
             let resolved =
                 self.replace_labels(&line, &obj_name)
-                    .map_err(|e| format_err!("line {}: cannot resolve label: {}", line.pos.line, e))?;
+                    .map_err(|e| format_err!("line {}: cannot resolve label: {}", line, e))?;
             new_lines.push(resolved);
         }
         Ok(new_lines)
@@ -800,7 +799,7 @@ impl ParseEngine {
             .unwrap_or(false)
     }
 
-    fn update(&mut self, section: &str, name: &str, body: &Lines) -> Status {
+    fn update(&mut self, section: &str, name: &str, body: &Vec<String>) -> Status {
         match section {
             SELECTOR => {
                 if self.entry_point.is_empty() {
@@ -868,7 +867,7 @@ impl ParseEngine {
     }
 
     fn update_data(
-        body: &Lines,
+        body: &Vec<String>,
         name: &str,
         item_size: &mut usize,
         values: &mut Vec<DataValue>,
@@ -880,7 +879,7 @@ impl ParseEngine {
         }
         for param in body {
             let mut value_len: usize = 0;
-            if let Some(cap) = COMM_RE.captures(param.text.as_str()) {
+            if let Some(cap) = COMM_RE.captures(param) {
                 // .comm <symbol>, <size>, <align>
                 let size_bytes = cap.get(2).unwrap().as_str().parse::<usize>()
                     .map_err(|_| format_err!("invalid \".comm\": invalid size"))?;
@@ -898,9 +897,9 @@ impl ParseEngine {
                     values.push(DataValue::Number((IntegerData::zero(), WORD_SIZE as usize)));
                 }
                 *item_size = value_len;
-            } else if param.text.trim() == ".bss" {
+            } else if param.trim() == ".bss" {
                 //ignore this directive
-            } else if let Some(cap) = ASCI_RE.captures(param.text.as_str()) {
+            } else if let Some(cap) = ASCI_RE.captures(param) {
                 // .asciz "string"
                 let mut str_bytes = cap.get(1).unwrap().as_str().as_bytes().to_vec();
                 //include 1 byte for termination zero, assume that it is C string
@@ -909,14 +908,14 @@ impl ParseEngine {
                 for cur_char in str_bytes {
                     values.push(DataValue::Number((IntegerData::from(cur_char).unwrap(), 1)));
                 }
-            } else if let Some(cap) = PARAM_RE.captures(param.text.as_str()) {
+            } else if let Some(cap) = PARAM_RE.captures(param) {
                 let pname = cap.get(1).unwrap().as_str();
                 value_len = match pname {
                     "byte"  => 1,
                     "long"  => 4,
                     "short" => 2,
                     "quad"  => 8,
-                    _ => bail!("invalid parameter: \"{}\"", param.text),
+                    _ => bail!("invalid parameter: \"{}\"", param),
                 };
                 let value = cap.get(2).map_or("", |m| m.as_str()).trim();
                 values.push(DataValue::Number((
@@ -985,22 +984,22 @@ impl ParseEngine {
         pers_dict.data().cloned()
     }
 
-    fn encode_computed_cell(cell: &Cell, toplevel: bool) -> Lines {
+    fn encode_computed_cell(cell: &Cell, toplevel: bool) -> Vec<String> {
         let slice = SliceData::load_cell(cell.clone()).unwrap();
         let mut lines = vec!();
         let opening = if toplevel { "{\n" } else { ".cell {\n" };
-        lines.push(Line::new(opening, "", 0));
-        lines.push(Line::new(format!(".blob x{}\n", slice.to_hex_string()).as_str(), "", 0));
+        lines.push(opening.to_string());
+        lines.push(format!(".blob x{}\n", slice.to_hex_string()));
         for i in slice.get_references() {
             let child = cell.reference(i).unwrap();
             let mut child_lines = Self::encode_computed_cell(&child, false);
             lines.append(&mut child_lines);
         }
-        lines.push(Line::new("}\n", "", 0));
+        lines.push("}\n".to_string());
         lines
     }
 
-    fn compute_cell(&mut self, name: &str) -> Result<Lines> {
+    fn compute_cell(&mut self, name: &str) -> Result<Vec<String>> {
         if let Some(computed) = self.computed.get(name) {
             return Ok(computed.clone())
         }
@@ -1009,15 +1008,16 @@ impl ParseEngine {
 
         let mut collected = vec!();
         for line in lines {
-            if COMPUTE_REGEX.is_match(&line.text) {
-                let name_inner = COMPUTE_REGEX.captures(&line.text).unwrap().get(1).unwrap().as_str();
+            if COMPUTE_REGEX.is_match(&line) {
+                let name_inner = COMPUTE_REGEX.captures(&line).unwrap().get(1).unwrap().as_str();
                 collected.append(&mut self.compute_cell(name_inner)?);
             } else {
                 collected.push(line.clone());
             }
         }
 
-        let (code, _) = ton_labs_assembler::compile_code_debuggable(collected)
+        let code = collected.iter().fold(String::new(), |acc, el| format!("{acc}{el}"));
+        let (code, _) = ton_labs_assembler::compile_code_debuggable(&code, "main_code")
             .map_err(|e| format_err!("{}", e))?;
 
         let mut engine = ton_vm::executor::Engine::with_capabilities(0).setup_with_libraries(
@@ -1041,14 +1041,14 @@ impl ParseEngine {
         Ok(res)
     }
 
-    fn replace_labels(&mut self, line: &Line, cur_obj_name: &FunctionId) -> Result<Line> {
-        if starts_with(&line.text, ".inline") {
-            let name = INLINE_REGEX.captures(&line.text).unwrap().get(1).unwrap().as_str().to_string();
+    fn replace_labels(&mut self, line: &str, cur_obj_name: &FunctionId) -> Result<String> {
+        if starts_with(line, ".inline") {
+            let name = INLINE_REGEX.captures(&line).unwrap().get(1).unwrap().as_str().to_string();
             self.globl_name_to_id.get(&name).copied().map(|id| {
                 self.insert_called_func(cur_obj_name, id);
                 id
             });
-            return Ok(line.clone())
+            return Ok(line.to_string())
         }
         resolve_name(line, |name| {
             self.internal_name_to_id.get(name).copied()
@@ -1332,11 +1332,11 @@ mod tests {
 
         assert_eq!(
             *body,
-            vec![Line::new("PUSHINT 10\n",    "test_macros.code", 4),
-                 Line::new("DROP\n",          "test_macros.code", 5),
-                 Line::new(".inline __sum\n", "test_macros.code", 6),
-                 Line::new("PUSHINT 3\n",     "test_macros.code", 7),
-                 Line::new("\n",              "test_macros.code", 8)]
+            vec!["PUSHINT 10\n".to_string(),
+                 "DROP\n".to_string(),
+                 ".inline __sum\n".to_string(),
+                 "PUSHINT 3\n".to_string(),
+                 "\n".to_string()]
         );
     }
 
@@ -1355,16 +1355,16 @@ mod tests {
 
         assert_eq!(
             *body,
-            vec![Line::new("PUSHINT 10\n",                   "test_macros_02.code", 4),
-                 Line::new("DROP\n",                         "test_macros_02.code", 5),
-                 Line::new(".inline __sum\n",                "test_macros_02.code", 6),
-                 Line::new("PUSHINT 3\n",                    "test_macros_02.code", 7),
-                 Line::new(".inline __getCredit_internal\n", "test_macros_02.code", 8),
-                 Line::new("\n",                             "test_macros_02.code", 9)]
+            vec!["PUSHINT 10\n".to_string(),
+                 "DROP\n".to_string(),
+                 ".inline __sum\n".to_string(),
+                 "PUSHINT 3\n".to_string(),
+                ".inline __getCredit_internal\n".to_string()
+                 "\n".to_string()]
         );
         assert_eq!(
             *internal,
-            vec![Line::new(".inline __sum\n", "test_macros_02.code", 20)]
+            vec![".inline __sum\n".to_string()]
         );
     }
 
@@ -1381,17 +1381,17 @@ mod tests {
         assert_eq!(
             *internal,
             vec![
-                Line::new("\n",               "test_compute.code", 3),
-                Line::new("PUSHREF\n",        "test_compute.code", 4),
-                Line::new("{\n",                "", 0),
-                Line::new(".blob x0000006f\n",  "", 0),
-                Line::new("}\n",                "", 0),
-                Line::new("CTOS\n",           "test_compute.code", 6),
-                Line::new("PLDU 32\n",        "test_compute.code", 7),
-                Line::new("PUSHINT 111\n",    "test_compute.code", 8),
-                Line::new("EQUAL\n",          "test_compute.code", 9),
-                Line::new("THROWIFNOT 222\n", "test_compute.code", 10),
-                Line::new("\n",               "test_compute.code", 11),
+                "\n".to_string(),
+                "PUSHREF\n".to_string(),
+                "{\n".to_string(),
+                ".blob x0000006f\n".to_string(),
+                "}\n".to_string(),
+                "CTOS\n".to_string(),
+                "PLDU 32\n".to_string(),
+                "PUSHINT 111\n".to_string(),
+                "EQUAL\n".to_string(),
+                "THROWIFNOT 222\n".to_string(),
+                "\n".to_string(),
             ]
         );
     }
@@ -1409,14 +1409,18 @@ mod tests {
         assert_eq!(
             *internal,
             vec![
-                Line::new("\n",               "test_compute_nested.code", 3),
-                Line::new("PUSHREF\n",        "test_compute_nested.code", 4),
-                Line::new("{\n",                "", 0),
-                Line::new(".blob x0000006f00000000000000de\n", "", 0),
-                Line::new("}\n",                "", 0),
-                Line::new("DROP\n",           "test_compute_nested.code", 6),
-                Line::new("\n",               "test_compute_nested.code", 7),
+                "\n".to_string(),
+                "PUSHREF\n".to_string(),
+                "{\n".to_string(),
+                ".blob x0000006f00000000000000de\n".to_string(),
+                "}\n".to_string(),
+                "DROP\n".to_string(),
+                "\n".to_string(),
             ]
         );
     }
+}
+
+pub fn lines_to_string(v: &Vec<String>) -> String {
+    v.iter().fold(String::new(), |acc, el| format!("{acc}{el}"))
 }

@@ -14,23 +14,22 @@ use failure::{bail, format_err};
 use regex::Regex;
 use std::convert::TryFrom;
 use std::fmt::{LowerHex, UpperHex, Display};
-use ton_labs_assembler::Line;
 use ton_types::Result;
 
 lazy_static! {
     pub static ref NAMES: Regex = Regex::new(r"\$(?P<id>:?[-_0-9a-zA-Z\.]+)(?P<offset>\+\d+)?(:(?P<len>\d*)?(?P<fmt>[xX])?)?\$").unwrap();
 }
 
-pub fn resolve_name<F, T>(line: &Line, mut get: F) -> Result<Line>
+pub fn resolve_name<F, T>(line: &str, mut get: F) -> Result<String>
     where
         F: FnMut(&str) -> Option<T>,
         T: LowerHex + UpperHex + Display + TryFrom<isize> + std::ops::AddAssign {
     let mut res_str = String::new();
     let mut end = 0;
-    let semicolon_pos = line.text.find(';').unwrap_or(line.text.len());
-    let (text_old, text_rem) = line.text.split_at(semicolon_pos);
+    let semicolon_pos = line.find(';').unwrap_or(line.len());
+    let (text_old, text_rem) = line.split_at(semicolon_pos);
     if !text_old.contains('$') {
-        return Ok(line.clone());
+        return Ok(line.to_string());
     }
     for cap in NAMES.captures_iter(text_old) {
         if cap.name("id").is_none() {
@@ -78,7 +77,7 @@ pub fn resolve_name<F, T>(line: &Line, mut get: F) -> Result<Line>
         res_str += " ";
     }
     res_str += text_rem;
-    let res = Line::new(res_str.as_str(), line.pos.filename.as_str(), line.pos.line);
+    let res = res_str.to_string();
     Ok(res)
 }
 
@@ -106,10 +105,10 @@ mod tests {
         where
             F: FnMut(&str) -> Option<T>,
             T: LowerHex + UpperHex + Display + TryFrom<isize> + std::ops::AddAssign {
-        let line = Line::new(text, "", 0);
+        let line = text.to_string();
         let res = super::resolve_name(&line, get);
         res.map(|lines| {
-            lines.text.clone()
+            lines.clone()
         })
     }
 

@@ -172,8 +172,8 @@ fn create_inbound_msg(
 fn decode_actions<F>(actions: StackItem, state: &mut StateInit, action_decoder: F) -> Status
     where F: Fn(SliceData, bool)
 {
-    if let StackItem::Cell(cell) = actions {
-        let actions: OutActions = OutActions::construct_from(&mut SliceData::load_cell(cell)?)?;
+    if let StackItem::Cell(ref cell) = actions {
+        let actions: OutActions = OutActions::construct_from(&mut SliceData::load_cell(cell.clone())?)?;
         println!("Output actions:\n----------------");
         for act in actions {
             match act {
@@ -450,7 +450,7 @@ pub fn call_contract<F>(
         }
 
         state_init.data = match engine.get_committed_state().get_root() {
-            StackItem::Cell(root_cell) => Some(root_cell),
+            StackItem::Cell(root_cell) => Some(root_cell.clone()),
             _ => panic!("cannot get root data: c4 register is not a cell."),
         };
     }
