@@ -12,9 +12,9 @@
  */
 use abi_json::json_abi::{encode_function_call, decode_function_response};
 use abi_json::Contract;
-use failure::format_err;
+use anyhow::{format_err, Result};
 use sha2::{Digest, Sha256};
-use ton_types::{BuilderData, Result, SliceData};
+use tvm_types::{BuilderData, ed25519_create_private_key, Ed25519PrivateKey, SliceData};
 
 pub fn build_abi_body(
     abi_file: &str,
@@ -25,14 +25,16 @@ pub fn build_abi_body(
     internal: bool,
     address: Option<String>,
 ) -> Result<BuilderData> {
+    let key = keypair.map(|pair| ed25519_create_private_key(pair.secret.as_bytes()).unwrap());
+    let address = address.unwrap_or_default();
     encode_function_call(
-        load_abi_json_string(abi_file)?,
-        method.to_owned(),
-        header.map(|v| v.to_owned()),
-        params.to_owned(),
+        &load_abi_json_string(abi_file)?,
+        method,
+        header,
+        params,
         internal,
-        keypair.as_ref(),
-        address,
+        key.as_ref(),
+        if address.is_empty() { None } else { Some(address.as_str()) },
     )
 }
 
@@ -53,8 +55,8 @@ pub fn decode_body(
     internal: bool,
 ) -> Result<String> {
     decode_function_response(
-        load_abi_json_string(abi_file)?,
-        method.to_owned(),
+        &load_abi_json_string(abi_file)?,
+        method,
         body,
         internal,
         false,

@@ -28,12 +28,12 @@ extern crate serde_json;
 extern crate sha2;
 extern crate simplelog;
 
-extern crate ton_abi as abi_json;
-extern crate ton_block;
-extern crate ton_labs_assembler;
-extern crate ton_types;
+extern crate tvm_abi as abi_json;
+extern crate tvm_block;
+extern crate tvm_assembler;
+extern crate tvm_types;
 #[macro_use]
-extern crate ton_vm;
+extern crate tvm_vm;
 
 pub mod abi;
 pub mod disasm;

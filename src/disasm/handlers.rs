@@ -11,7 +11,7 @@
  * limitations under the License.
  */
 
-use ton_types::{Result, SliceData};
+use tvm_types::{Result, SliceData};
 
 use super::types::{Instruction, Signaling, Quiet};
 use super::loader::*;

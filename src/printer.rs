@@ -10,10 +10,10 @@
  * See the License for the specific TON DEV software governing permissions and
  * limitations under the License.
  */
-use failure::format_err;
-use ton_block::*;
-use ton_types::write_boc;
-use ton_types::{BuilderData, Cell, Result};
+use anyhow::format_err;
+use tvm_block::*;
+use tvm_types::write_boc;
+use tvm_types::{BuilderData, Cell, Result};
 
 fn get_version(root: &Cell) -> Result<String> {
     let cell1 = root.reference(0).map_err(|e| format_err!("not found ({})", e))?;

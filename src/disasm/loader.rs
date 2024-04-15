@@ -11,7 +11,8 @@
  * limitations under the License.
  */
 
-use ton_types::{Result, Cell, SliceData, fail, UInt256};
+use anyhow::Result;
+use tvm_types::{Cell, SliceData, fail, UInt256};
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::ops::Not;
@@ -106,7 +107,7 @@ macro_rules! create_handler_3r {
 macro_rules! check {
     ($expr:expr) => {
         if !$expr {
-            return Err(failure::err_msg(format!("check failed {}:{}", file!(), line!())))
+            return Err(anyhow::format_err!("check failed {}:{}", file!(), line!()))
         }
     };
 }
@@ -114,7 +115,7 @@ macro_rules! check {
 macro_rules! check_eq {
     ($lhs:expr, $rhs:literal) => {
         if $lhs != $rhs {
-            return Err(failure::err_msg(format!("check failed {}:{}", file!(), line!())))
+            return Err(anyhow::format_err!("check failed {}:{}", file!(), line!()))
         }
     };
 }

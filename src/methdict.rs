@@ -11,9 +11,9 @@
  * limitations under the License.
  */
 use std::collections::{BTreeMap, HashMap};
-use ton_block::Serializable;
-use ton_labs_assembler::{DbgInfo};
-use ton_types::{SliceData, dictionary::HashmapE};
+use tvm_block::Serializable;
+use tvm_assembler::{DbgInfo};
+use tvm_types::{SliceData, dictionary::HashmapE};
 
 use crate::program::Program;
 

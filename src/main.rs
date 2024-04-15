@@ -10,7 +10,7 @@
  * See the License for the specific TON DEV software governing permissions and
  * limitations under the License.
  */
-extern crate ton_abi as abi_json;
+extern crate tvm_abi as abi_json;
 extern crate base64;
 #[macro_use]
 extern crate clap;
@@ -26,13 +26,13 @@ extern crate serde;
 extern crate serde_json;
 extern crate sha2;
 extern crate simplelog;
-extern crate ton_block;
-extern crate ton_types;
+extern crate tvm_block;
+extern crate tvm_types;
 #[macro_use]
-extern crate ton_vm;
+extern crate tvm_vm;
 #[macro_use]
 extern crate log;
-extern crate ton_labs_assembler;
+extern crate tvm_assembler;
 extern crate num_traits;
 
 mod abi;
@@ -47,14 +47,14 @@ mod disasm;
 
 use std::{env, io::Write, path::Path, fs::File, str::FromStr};
 use clap::ArgMatches;
-use failure::{format_err, bail};
+use anyhow::{format_err, bail};
 
-use ton_block::{
+use tvm_block::{
     Deserializable, Message, StateInit, Serializable, Account, MsgAddressInt,
     ExternalInboundMessageHeader, InternalMessageHeader, MsgAddressIntOrNone, ConfigParams
 };
-use ton_types::{SliceData, Result, Status, AccountId, UInt256, BocWriter};
-use ton_labs_assembler::{compile_code_to_cell};
+use tvm_types::{SliceData, Result, Status, AccountId, UInt256, BocWriter};
+use tvm_assembler::{compile_code_to_cell};
 
 use abi::{build_abi_body, decode_body, load_abi_json_string, load_abi_contract};
 use keyman::KeypairManager;
@@ -64,7 +64,7 @@ use resolver::resolve_name;
 use testcall::{call_contract, MsgInfo, TestCallParams, TraceLevel};
 use disasm::commands::disasm_command;
 
-const DEFAULT_CAPABILITIES: u64 = 0x880116ae; // Default capabilities on the main network
+pub const DEFAULT_CAPABILITIES: u64 = 0x880116ae; // Default capabilities on the main network
 
 fn main() -> std::result::Result<(), i32> {
     linker_main().map_err(|err_str| {
@@ -256,7 +256,7 @@ fn linker_main() -> Status {
                 .map_err(|e| format_err!("failed to read input file: {}", e))?;
             let cell = compile_code_to_cell(code.as_str())
                 .map_err(|e| format_err!("failed to assemble: {}", e))?;
-            let bytes = ton_types::write_boc(&cell)?;
+            let bytes = tvm_types::write_boc(&cell)?;
             let mut file = File::create(output).unwrap();
             file.write_all(&bytes)?;
             return Ok(())
@@ -389,7 +389,7 @@ fn replace_command(matches: &ArgMatches) -> Status {
         }
         Err(_) => {
             let data = std::fs::read(path)?;
-            ton_types::read_boc(data)?.withdraw_single_root()?
+            tvm_types::read_boc(data)?.withdraw_single_root()?
         }
     };
 

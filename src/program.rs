@@ -12,14 +12,14 @@
  */
 use base64::encode;
 use ed25519_dalek::*;
-use failure::format_err;
+use anyhow::format_err;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::collections::HashMap;
 use std::time::SystemTime;
-use ton_block::*;
-use ton_labs_assembler::{DbgInfo, Engine};
-use ton_types::{
+use tvm_block::*;
+use tvm_assembler::{DbgInfo, Engine};
+use tvm_types::{
     read_boc, Cell, SliceData, BuilderData, IBitstring, Result,
     dictionary::{HashmapE, HashmapType},
 };

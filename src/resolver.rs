@@ -10,11 +10,11 @@
  * See the License for the specific TON DEV software governing permissions and
  * limitations under the License.
  */
-use failure::{bail, format_err};
+use anyhow::{bail, format_err};
 use regex::Regex;
 use std::convert::TryFrom;
 use std::fmt::{LowerHex, UpperHex, Display};
-use ton_types::Result;
+use tvm_types::Result;
 
 lazy_static! {
     pub static ref NAMES: Regex = Regex::new(r"\$(?P<id>:?[-_0-9a-zA-Z\.]+)(?P<offset>\+\d+)?(:(?P<len>\d*)?(?P<fmt>[xX])?)?\$").unwrap();

@@ -14,23 +14,23 @@
 use std::{fs::File, str::FromStr, sync::Arc};
 
 use ed25519_dalek::Signer;
-use failure::format_err;
+use anyhow::format_err;
 use log::Level::Error;
 use simplelog::{SimpleLogger, Config, LevelFilter};
 use serde_json::Value;
-use ton_vm::{
+use tvm_vm::{
     executor::{Engine, EngineTraceInfo, EngineTraceInfoType, gas::gas_state::Gas},
     error::tvm_exception,
     stack::{StackItem, Stack, savelist::SaveList, integer::IntegerData},
     SmartContractInfo,
 };
-use ton_types::{AccountId, BuilderData, Cell, SliceData, Result, Status, HashmapE};
-use ton_block::{
+use tvm_types::{AccountId, BuilderData, Cell, SliceData, Result, Status, HashmapE};
+use tvm_block::{
     CurrencyCollection, Deserializable, ExternalInboundMessageHeader, Grams,
     InternalMessageHeader, Message, MsgAddressExt, MsgAddressInt, OutAction,
     OutActions, Serializable, StateInit,
 };
-use ton_labs_assembler::DbgInfo;
+use tvm_assembler::DbgInfo;
 
 use crate::keyman::KeypairManager;
 use crate::printer::msg_printer;

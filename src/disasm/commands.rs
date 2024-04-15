@@ -13,11 +13,11 @@
 
 use std::collections::HashSet;
 use std::str::FromStr;
-use failure::{bail, format_err};
-use ton_block::Serializable;
+use anyhow::{bail, format_err};
+use tvm_block::Serializable;
 use clap::ArgMatches;
-use ton_types::read_boc;
-use ton_types::{Cell, HashmapE, HashmapType, SliceData, UInt256, Status};
+use tvm_types::read_boc;
+use tvm_types::{Cell, HashmapE, HashmapType, SliceData, UInt256, Status};
 
 use super::{loader::Loader, types::Shape};
 

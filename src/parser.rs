@@ -14,13 +14,13 @@
 use crate::abi::{gen_abi_id, load_abi_contract};
 use crate::resolver::resolve_name;
 
-use ton_types::{BuilderData, IBitstring, SliceData, Cell, Result, Status};
-use ton_types::dictionary::{HashmapE, HashmapType};
-use ton_vm::stack::integer::{IntegerData, serialization::{Encoding, SignedIntegerBigEndianEncoding}};
-use ton_vm::stack::serialization::Serializer;
+use tvm_types::{BuilderData, IBitstring, SliceData, Cell, Result, Status};
+use tvm_types::dictionary::{HashmapE, HashmapType};
+use tvm_vm::stack::integer::{IntegerData, serialization::{Encoding, SignedIntegerBigEndianEncoding}};
+use tvm_vm::stack::serialization::Serializer;
 
 use abi_json::Contract;
-use failure::{format_err, bail};
+use anyhow::{format_err, bail};
 use regex::Regex;
 
 use std::collections::{BTreeMap, HashSet, HashMap};
@@ -509,7 +509,7 @@ impl ParseEngine {
         let mut reader = BufReader::new(&mut input.buf);
 
         while reader.read_line(&mut l)
-            .map_err(|e| failure::err_msg(format!("Failed to read file {}: {}", filename.clone(), e)))? != 0 {
+            .map_err(|e| anyhow::format_err!("Failed to read file {}: {}", filename.clone(), e))? != 0 {
             lnum += 1;
 
             l = l.replace('\r', "");
@@ -1017,10 +1017,10 @@ impl ParseEngine {
         }
 
         let code = collected.iter().fold(String::new(), |acc, el| format!("{acc}{el}"));
-        let (code, _) = ton_labs_assembler::compile_code_debuggable(&code, "main_code")
+        let (code, _) = tvm_assembler::compile_code_debuggable(&code, "main_code")
             .map_err(|e| format_err!("{}", e))?;
 
-        let mut engine = ton_vm::executor::Engine::with_capabilities(0).setup_with_libraries(
+        let mut engine = tvm_vm::executor::Engine::with_capabilities(0).setup_with_libraries(
             code, None, None, None, vec![]);
         match engine.execute() {
             Err(e) => {
@@ -1171,9 +1171,9 @@ impl ParseEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ton_vm::executor::Engine;
-    use ton_labs_assembler::compile_code;
-    use ton_vm::stack::{Stack, StackItem};
+    use tvm_vm::executor::Engine;
+    use tvm_assembler::compile_code;
+    use tvm_vm::stack::{Stack, StackItem};
 
     #[test]
     fn test_parser_testlib() {
@@ -1359,7 +1359,7 @@ mod tests {
                  "DROP\n".to_string(),
                  ".inline __sum\n".to_string(),
                  "PUSHINT 3\n".to_string(),
-                ".inline __getCredit_internal\n".to_string()
+                ".inline __getCredit_internal\n".to_string(),
                  "\n".to_string()]
         );
         assert_eq!(
