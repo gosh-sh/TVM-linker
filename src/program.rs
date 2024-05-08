@@ -476,7 +476,8 @@ mod tests {
                 src,
                 now,
                 bounced: false,
-                body
+                body,
+                ..Default::default()
             },
             None,
             key_file,
@@ -531,7 +532,8 @@ mod tests {
                 src: None,
                 now: 1,
                 bounced: false,
-                body: Some(SliceData::load_builder(body).unwrap())
+                body: Some(SliceData::load_builder(body).unwrap()),
+                ..Default::default()
             },
             None,
             None,
@@ -577,7 +579,8 @@ mod tests {
                 src: None,
                 now: 1,
                 bounced: false,
-                body: Some(SliceData::load_builder(body).unwrap())
+                body: Some(SliceData::load_builder(body).unwrap()),
+                ..Default::default()
             },
             None,
             None,
@@ -636,7 +639,8 @@ mod tests {
                 src: None,
                 now: 1,
                 bounced: false,
-                body: Some(SliceData::load_builder(body).unwrap())
+                body: Some(SliceData::load_builder(body).unwrap()),
+                ..Default::default()
             },
             None,
             None,

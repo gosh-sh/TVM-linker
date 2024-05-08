@@ -46,13 +46,11 @@ mod testcall;
 mod disasm;
 
 use std::{env, io::Write, path::Path, fs::File, str::FromStr};
+use std::collections::HashMap;
 use clap::ArgMatches;
 use anyhow::{format_err, bail};
 
-use tvm_block::{
-    Deserializable, Message, StateInit, Serializable, Account, MsgAddressInt,
-    ExternalInboundMessageHeader, InternalMessageHeader, MsgAddressIntOrNone, ConfigParams
-};
+use tvm_block::{Deserializable, Message, StateInit, Serializable, Account, MsgAddressInt, ExternalInboundMessageHeader, InternalMessageHeader, MsgAddressIntOrNone, ConfigParams, ExtraCurrencyCollection, VarUInteger32};
 use tvm_types::{SliceData, Result, Status, AccountId, UInt256, BocWriter};
 use tvm_assembler::{compile_code_to_cell};
 
@@ -64,7 +62,7 @@ use resolver::resolve_name;
 use testcall::{call_contract, MsgInfo, TestCallParams, TraceLevel};
 use disasm::commands::disasm_command;
 
-pub const DEFAULT_CAPABILITIES: u64 = 0x880116ae; // Default capabilities on the main network
+pub const DEFAULT_CAPABILITIES: u64 = 0x881757AE; // Default capabilities on the main network
 
 fn main() -> std::result::Result<(), i32> {
     linker_main().map_err(|err_str| {
@@ -136,6 +134,7 @@ fn linker_main() -> Status {
             (@arg TRACE_MIN: --("trace-minimal") "Prints minimal trace")
             (@arg DECODEC6: --("decode-c6") "Prints last command name, stack and registers after each executed TVM command")
             (@arg INTERNAL: --internal +takes_value "Emulates inbound internal message with value instead of external message")
+            (@arg ECC: --ecc +takes_value "Attach ExtraCurrencyCollection from dictionary to the inbound internal message")
             (@arg BOUNCED: --bounced requires[INTERNAL] "Emulates bounced message, can be used only with --internal option.")
             (@arg BALANCE: --balance +takes_value "Emulates supplied account balance")
             (@arg SRCADDR: --src +takes_value "Supplies message source address")
@@ -377,7 +376,7 @@ fn replace_command(matches: &ArgMatches) -> Status {
     if !path.exists() {
         bail!("File {} doesn't exist", input);
     }
-    sources.push(path.clone());
+    sources.push(path);
 
     let mut prog_opt = None;
     let code = match ParseEngine::new(sources, abi_json) {
@@ -556,12 +555,24 @@ fn run_test_subcmd(matches: &ArgMatches) -> Status {
     println!("TEST STARTED");
     println!("body = {:?}", body);
 
+    let ecc = if let Some(ecc) = matches.value_of("ECC") {
+        let ecc_map: HashMap<u32, String> = serde_json::from_str(ecc)?;
+        let mut ecc = ExtraCurrencyCollection::new();
+        for (k, v) in ecc_map {
+            ecc.set(&k, &VarUInteger32::from_str(&v)?)?;
+        }
+        Some(ecc)
+    } else {
+        None
+    };
+
     let mut msg_info = MsgInfo {
         balance: matches.value_of("INTERNAL"),
         src: matches.value_of("SRCADDR"),
         now,
         bounced: matches.is_present("BOUNCED"),
         body,
+        ecc,
     };
 
     if let Some(filename) = matches.value_of("BODY_FROM_BOC") {

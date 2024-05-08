@@ -14,7 +14,7 @@ use abi_json::json_abi::{encode_function_call, decode_function_response};
 use abi_json::Contract;
 use anyhow::{format_err, Result};
 use sha2::{Digest, Sha256};
-use tvm_types::{BuilderData, ed25519_create_private_key, Ed25519PrivateKey, SliceData};
+use tvm_types::{BuilderData, ed25519_create_private_key, SliceData};
 
 pub fn build_abi_body(
     abi_file: &str,
