@@ -35,11 +35,11 @@ sha2 = '0.10'
 simplelog = '0.6'
 serde = { features = [ 'derive' ], version = '1.0.197' }
 
-tvm_abi = { git = 'https://github.com/tvmlabs/tvm-sdk.git', tag = 'rc-1.47.0' }
-tvm_assembler = { git = 'https://github.com/tvmlabs/tvm-sdk.git', tag = 'rc-1.47.0', features = [ 'gosh' ]}
-tvm_block = { git = 'https://github.com/tvmlabs/tvm-sdk.git', tag = 'rc-1.47.0' }
-tvm_types = { git = 'https://github.com/tvmlabs/tvm-sdk.git', tag = 'rc-1.47.0' }
-tvm_vm = { git = 'https://github.com/tvmlabs/tvm-sdk.git', tag = 'rc-1.47.0', features = ['gosh'] }
+tvm_abi = { git = 'https://github.com/tvmlabs/tvm-sdk.git', tag = 'v2.0.0.an' }
+tvm_assembler = { git = 'https://github.com/tvmlabs/tvm-sdk.git', tag = 'v2.0.0.an', features = [ 'gosh' ]}
+tvm_block = { git = 'https://github.com/tvmlabs/tvm-sdk.git', tag = 'v2.0.0.an' }
+tvm_types = { git = 'https://github.com/tvmlabs/tvm-sdk.git', tag = 'v2.0.0.an' }
+tvm_vm = { git = 'https://github.com/tvmlabs/tvm-sdk.git', tag = 'v2.0.0.an', features = ['gosh'] }
 
 [dev-dependencies]
 assert_cmd = '2.0.5'
