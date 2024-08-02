@@ -14,23 +14,19 @@
 use std::{fs::File, str::FromStr, sync::Arc};
 
 use ed25519_dalek::Signer;
-use failure::format_err;
+use anyhow::format_err;
 use log::Level::Error;
 use simplelog::{SimpleLogger, Config, LevelFilter};
 use serde_json::Value;
-use ton_vm::{
+use tvm_vm::{
     executor::{Engine, EngineTraceInfo, EngineTraceInfoType, gas::gas_state::Gas},
     error::tvm_exception,
     stack::{StackItem, Stack, savelist::SaveList, integer::IntegerData},
     SmartContractInfo,
 };
-use ton_types::{AccountId, BuilderData, Cell, SliceData, Result, Status, HashmapE};
-use ton_block::{
-    CurrencyCollection, Deserializable, ExternalInboundMessageHeader, Grams,
-    InternalMessageHeader, Message, MsgAddressExt, MsgAddressInt, OutAction,
-    OutActions, Serializable, StateInit,
-};
-use ton_labs_assembler::DbgInfo;
+use tvm_types::{AccountId, BuilderData, Cell, SliceData, Result, Status, HashmapE};
+use tvm_block::{CurrencyCollection, Deserializable, ExternalInboundMessageHeader, ExtraCurrencyCollection, Grams, InternalMessageHeader, Message, MsgAddressExt, MsgAddressInt, OutAction, OutActions, Serializable, StateInit};
+use tvm_assembler::DbgInfo;
 
 use crate::keyman::KeypairManager;
 use crate::printer::msg_printer;
@@ -132,7 +128,10 @@ fn create_inbound_msg(
     msg_info: &MsgInfo,
     dst: AccountId,
 ) -> Result<Option<Message>> {
-    let (_, value) = decode_balance(msg_info.balance)?;
+    let (_, mut value) = decode_balance(msg_info.balance)?;
+    if let Some(ecc) = &msg_info.ecc {
+        value.other = ecc.clone();
+    }
     Ok(match selector {
         0 => {
             let src = match msg_info.src {
@@ -169,15 +168,21 @@ fn create_inbound_msg(
     })
 }
 
-fn decode_actions<F>(actions: StackItem, state: &mut StateInit, action_decoder: F) -> Status
+fn decode_actions<F>(actions: StackItem, state: &mut StateInit, action_decoder: F, addr: MsgAddressInt) -> Status
     where F: Fn(SliceData, bool)
 {
-    if let StackItem::Cell(cell) = actions {
-        let actions: OutActions = OutActions::construct_from(&mut SliceData::load_cell(cell)?)?;
+    if let StackItem::Cell(ref cell) = actions {
+        let actions: OutActions = OutActions::construct_from(&mut SliceData::load_cell(cell.clone())?)?;
         println!("Output actions:\n----------------");
+        let mut created_lt = 1;
         for act in actions {
             match act {
-                OutAction::SendMsg{mode: _, out_msg } => {
+                OutAction::SendMsg{mode: _, mut out_msg } => {
+                    if out_msg.is_internal() {
+                        out_msg.set_src_address(addr.clone());
+                        out_msg.set_at_and_lt(0, created_lt);
+                        created_lt += 1;
+                    }
                     println!("Action(SendMsg):\n{}", msg_printer(&out_msg)?);
                     if let Some(b) = out_msg.body() {
                         action_decoder(b, out_msg.is_internal());
@@ -234,12 +239,14 @@ fn decode_balance(value: Option<&str>) -> Result<(u64, CurrencyCollection)> {
     }
 }
 
+#[derive(Default)]
 pub struct MsgInfo<'a> {
     pub balance: Option<&'a str>,
     pub src: Option<&'a str>,
     pub now: u32,
     pub bounced: bool,
     pub body: Option<SliceData>,
+    pub ecc: Option<ExtraCurrencyCollection>,
 }
 
 pub fn load_debug_info(filename: &str) -> Option<DbgInfo> {
@@ -446,11 +453,11 @@ pub fn call_contract<F>(
 
     if is_vm_success {
         if let Some(decoder) = params.action_decoder {
-            decode_actions(engine.get_actions(), &mut state_init, decoder)?;
+            decode_actions(engine.get_actions(), &mut state_init, decoder, addr)?;
         }
 
         state_init.data = match engine.get_committed_state().get_root() {
-            StackItem::Cell(root_cell) => Some(root_cell),
+            StackItem::Cell(root_cell) => Some(root_cell.clone()),
             _ => panic!("cannot get root data: c4 register is not a cell."),
         };
     }

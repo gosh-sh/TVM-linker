@@ -10,8 +10,8 @@
  * See the License for the specific TON DEV software governing permissions and
  * limitations under the License.
  */
-use failure::format_err;
-use ton_types::Result;
+use anyhow::format_err;
+use tvm_types::Result;
 use serde::Deserialize;
 
 pub struct KeypairManager(ed25519_dalek::Keypair);

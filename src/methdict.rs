@@ -11,16 +11,16 @@
  * limitations under the License.
  */
 use std::collections::{BTreeMap, HashMap};
-use ton_block::Serializable;
-use ton_labs_assembler::{Lines, DbgInfo};
-use ton_types::{SliceData, dictionary::HashmapE};
+use tvm_block::Serializable;
+use tvm_assembler::{DbgInfo};
+use tvm_types::{SliceData, dictionary::HashmapE};
 
 use crate::program::Program;
 
 impl Program {
     pub fn prepare_methods<T>(
         &mut self,
-        methods: &HashMap<T, Lines>,
+        methods: &HashMap<T, Vec<String>>,
         adjust_entry_points: bool,
     ) -> Result<(HashmapE, DbgInfo), (T, String)>
     where
@@ -37,7 +37,7 @@ impl Program {
         &mut self,
         map: &mut HashmapE,
         dbg: &mut DbgInfo,
-        methods: &HashMap<T, Lines>,
+        methods: &HashMap<T, Vec<String>>,
         adjust_entry_points: bool,
     ) -> Result<(), (T, String)>
     where

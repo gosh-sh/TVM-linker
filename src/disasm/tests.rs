@@ -11,7 +11,7 @@
  * limitations under the License.
  */
 
-use ton_types::{read_boc, write_boc, SliceData};
+use tvm_types::{read_boc, write_boc, SliceData};
 use super::commands::{disasm, print_tree_of_cells};
 
 use rayon::prelude::*;
@@ -34,7 +34,7 @@ fn round_trip_test(filename: &str, check_bin: bool) {
     let bin0 = base64::decode(raw0).unwrap();
     let toc0 = read_boc(bin0).unwrap().withdraw_single_root().unwrap();
     let mut asm0 = disasm(&mut SliceData::load_cell(toc0.clone()).unwrap());
-    let toc1 = ton_labs_assembler::compile_code_to_cell(&asm0.clone()).unwrap();
+    let toc1 = tvm_assembler::compile_code_to_cell(&asm0.clone()).unwrap();
     let mut asm1 = disasm(&mut SliceData::load_cell(toc1.clone()).unwrap());
 
     if !check_bin {

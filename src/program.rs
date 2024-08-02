@@ -12,18 +12,18 @@
  */
 use base64::encode;
 use ed25519_dalek::*;
-use failure::format_err;
+use anyhow::format_err;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::collections::HashMap;
 use std::time::SystemTime;
-use ton_block::*;
-use ton_labs_assembler::{Line, Lines, DbgInfo, Engine};
-use ton_types::{
+use tvm_block::*;
+use tvm_assembler::{DbgInfo, Engine};
+use tvm_types::{
     read_boc, Cell, SliceData, BuilderData, IBitstring, Result,
     dictionary::{HashmapE, HashmapType},
 };
-use crate::parser::{ptr_to_builder, ParseEngine, ParseEngineResults, SelectorVariant};
+use crate::parser::{ptr_to_builder, ParseEngine, ParseEngineResults, SelectorVariant, lines_to_string};
 use crate::printer::tree_of_cells_into_base64;
 
 const XMODEM: crc::Crc<u16> = crc::Crc::<u16>::new(&crc::CRC_16_XMODEM);
@@ -41,10 +41,10 @@ pub struct Program {
 impl Program {
     pub fn new(parser: ParseEngine) -> Result<Self> {
         let engine = ParseEngineResults::new(parser);
-        let mut assembler = Engine::new(Vec::new());
+        let mut assembler = Engine::new("");
         for name in engine.postorder_fragments() {
             let lines = engine.fragments().get(name).unwrap();
-            assembler.build(Some(format!("__{}", name)), lines.clone())
+            assembler.build(Some(format!("__{}", name)), &lines_to_string(&lines))
                 .map_err(|e| format_err!("Failed to assemble {}: {}", name, e))?;
         }
         Ok(Program {
@@ -98,7 +98,7 @@ impl Program {
         builder.into_cell()
     }
 
-    pub fn entry(&self) -> Lines {
+    pub fn entry(&self) -> Vec<String> {
         self.engine.entry()
     }
 
@@ -109,7 +109,7 @@ impl Program {
         Ok(dict.0.data().cloned())
     }
 
-    fn publics_filtered(&self, remove_ctor: bool) -> HashMap<u32, Lines> {
+    fn publics_filtered(&self, remove_ctor: bool) -> HashMap<u32, Vec<String>> {
         self.engine.publics().into_iter()
             .filter(|(k, _)|
                 !(remove_ctor && self.engine.global_name(*k).unwrap_or_default() == "constructor")
@@ -166,8 +166,8 @@ impl Program {
 
     fn compile_asm_old(&mut self, remove_ctor: bool) -> Result<Cell> {
         let internal_selector_text = vec![
-            Line::new("DICTPUSHCONST 32\n", "<internal-selector>", 1),
-            Line::new("DICTUGETJMP\n",      "<internal-selector>", 2),
+            "DICTPUSHCONST 32\n".to_string(),
+            "DICTUGETJMP\n".to_string(),
         ];
         let mut internal_selector = self.assemble(internal_selector_text)?;
         internal_selector.0.append_reference(SliceData::load_cell(self.internal_method_dict()?.unwrap_or_default())?);
@@ -199,9 +199,9 @@ impl Program {
 
         let internal_selector_text = vec![
             // indirect jump
-            Line::new("DICTPUSHCONST 32\n", "<internal-selector>", 1),
-            Line::new("DICTUGETJMPZ\n",      "<internal-selector>", 2),
-            Line::new("THROW 78\n",      "<internal-selector>", 3),
+            "DICTPUSHCONST 32\n".to_string(),
+            "DICTUGETJMPZ\n".to_string(),
+            "THROW 78\n".to_string(),
         ];
 
         let mut internal_selector = self.assemble(internal_selector_text)?;
@@ -238,17 +238,17 @@ impl Program {
         self.dbgmap.insert(hash, entry.clone());
 
         let entry_selector_text = vec![
-            Line::new("PUSHREFCONT\n", "<entry-selector>", 1),
-            Line::new("POPCTR c3\n",   "<entry-selector>", 2),
-            Line::new("DUP\n",         "<entry-selector>", 3),
-            Line::new("IFNOTJMPREF\n", "<entry-selector>", 4),  //  0 - internal transaction
-            Line::new("DUP\n",         "<entry-selector>", 5),
-            Line::new("EQINT -1\n",    "<entry-selector>", 6),
-            Line::new("IFJMPREF\n",    "<entry-selector>", 7),  // -1 - external transaction
-            Line::new("DUP\n",         "<entry-selector>", 8),
-            Line::new("EQINT -2\n",    "<entry-selector>", 9),
-            Line::new("IFJMPREF\n",    "<entry-selector>", 10), // -2 - ticktock transaction
-            Line::new("THROW 11\n",    "<entry-selector>", 11),
+            "PUSHREFCONT\n".to_string(),
+            "POPCTR c3\n".to_string(),
+            "DUP\n".to_string(),
+            "IFNOTJMPREF\n".to_string(),  //  0 - internal transaction
+            "DUP\n".to_string(),
+            "EQINT -1\n".to_string(),
+            "IFJMPREF\n".to_string(),  // -1 - external transaction
+            "DUP\n".to_string(),
+            "EQINT -2\n".to_string(),
+            "IFJMPREF\n".to_string(), // -2 - ticktock transaction
+            "THROW 11\n".to_string(),
         ];
 
         let mut entry_selector = self.assemble(entry_selector_text)?;
@@ -277,19 +277,19 @@ impl Program {
             }
         };
         let func_upgrade_text = vec![
-            Line::new(format!("PUSHINT {}\n", func_id).as_str(),    "<func-upgrade-code>", 1),
-            Line::new("EQUAL\n",           "<func-upgrade-code>", 2),
-            Line::new("THROWIFNOT 79\n",   "<func-upgrade-code>", 3),
+            format!("PUSHINT {}\n", func_id),
+            "EQUAL\n".to_string(),
+            "THROWIFNOT 79\n".to_string(),
 
-            Line::new("PUSHREF\n",         "<func-upgrade-code>", 4),
-            Line::new("DUP\n",             "<func-upgrade-code>", 5),
-            Line::new("SETCODE\n",         "<func-upgrade-code>", 6),
-            Line::new("CTOS\n",            "<func-upgrade-code>", 7),
-            Line::new("PLDREF\n",          "<func-upgrade-code>", 8),
-            Line::new("CTOS\n",            "<func-upgrade-code>", 9),
-            Line::new("BLESS\n",           "<func-upgrade-code>", 10),
-            Line::new("POP C3\n",          "<func-upgrade-code>", 12),
-            Line::new("CALL 2\n",          "<func-upgrade-code>", 13),
+            "PUSHREF\n".to_string(),
+            "DUP\n".to_string(),
+            "SETCODE\n".to_string(),
+            "CTOS\n".to_string(),
+            "PLDREF\n".to_string(),
+            "CTOS\n".to_string(),
+            "BLESS\n".to_string(),
+            "POP C3\n".to_string(),
+            "CALL 2\n".to_string(),
         ];
         let mut func_upgrade_code = self.assemble(func_upgrade_text)?;
         assert_eq!(func_upgrade_code.1.len(), 1);
@@ -307,8 +307,8 @@ impl Program {
         self.engine.debug_print();
     }
 
-    pub fn assemble(&mut self, lines: Lines) -> Result<(SliceData, DbgInfo)> {
-        let res = self.assembler.build(None, lines)
+    pub fn assemble(&mut self, lines: Vec<String>) -> Result<(SliceData, DbgInfo)> {
+        let res = self.assembler.build(None, &lines_to_string(&lines))
             .map_err(|e| format_err!("compilation failed: {}", e))?
             .finalize();
         Ok(res)
@@ -476,7 +476,8 @@ mod tests {
                 src,
                 now,
                 bounced: false,
-                body
+                body,
+                ..Default::default()
             },
             None,
             key_file,
@@ -531,7 +532,8 @@ mod tests {
                 src: None,
                 now: 1,
                 bounced: false,
-                body: Some(SliceData::load_builder(body).unwrap())
+                body: Some(SliceData::load_builder(body).unwrap()),
+                ..Default::default()
             },
             None,
             None,
@@ -577,7 +579,8 @@ mod tests {
                 src: None,
                 now: 1,
                 bounced: false,
-                body: Some(SliceData::load_builder(body).unwrap())
+                body: Some(SliceData::load_builder(body).unwrap()),
+                ..Default::default()
             },
             None,
             None,
@@ -636,7 +639,8 @@ mod tests {
                 src: None,
                 now: 1,
                 bounced: false,
-                body: Some(SliceData::load_builder(body).unwrap())
+                body: Some(SliceData::load_builder(body).unwrap()),
+                ..Default::default()
             },
             None,
             None,

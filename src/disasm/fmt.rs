@@ -11,7 +11,7 @@
  * limitations under the License.
  */
 
-use ton_types::{Cell, Result, SliceData};
+use tvm_types::{Cell, Result, SliceData};
 use super::{
     types::{Instruction, InstructionParameter, Code},
     codedict::DelimitedHashmapE

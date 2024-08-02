@@ -12,7 +12,7 @@
  */
 
 use std::collections::HashMap;
-use ton_types::{Cell, HashmapE, HashmapType, Result, SliceData, fail};
+use tvm_types::{Cell, HashmapE, HashmapType, Result, SliceData, fail};
 use super::{
     types::{Instruction, InstructionParameter, Code},
     loader::Loader

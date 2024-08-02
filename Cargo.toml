@@ -16,6 +16,7 @@ name = 'tvm_linker'
 path = 'src/main.rs'
 
 [dependencies]
+anyhow = "1.0.81"
 base64 = '0.13'
 clap = '2.33'
 crc = '3.0'
@@ -32,12 +33,13 @@ regex = '1'
 serde_json = '1.0'
 sha2 = '0.10'
 simplelog = '0.6'
-serde = { features = [ 'derive' ], version = '1.0' }
-ton_abi = { git = 'https://github.com/tonlabs/ever-abi.git', tag = '2.3.134' }
-ton_block = { features = [ 'gosh' ], git = 'https://github.com/tonlabs/ever-block.git', tag = '1.9.92' }
-ton_labs_assembler = { features = [ 'gosh' ], git = 'https://github.com/tonlabs/ever-assembler.git', tag = '1.2.132' }
-ton_types = { git = 'https://github.com/tonlabs/ever-types.git', tag = '2.0.20' }
-ton_vm = { features = [ 'gosh' ], git = 'https://github.com/tonlabs/ever-vm.git', tag = '1.8.195' }
+serde = { features = [ 'derive' ], version = '1.0.197' }
+
+tvm_abi = { git = 'https://github.com/tvmlabs/tvm-sdk.git', tag = 'v2.0.0.an' }
+tvm_assembler = { git = 'https://github.com/tvmlabs/tvm-sdk.git', tag = 'v2.0.0.an', features = [ 'gosh' ]}
+tvm_block = { git = 'https://github.com/tvmlabs/tvm-sdk.git', tag = 'v2.0.0.an' }
+tvm_types = { git = 'https://github.com/tvmlabs/tvm-sdk.git', tag = 'v2.0.0.an' }
+tvm_vm = { git = 'https://github.com/tvmlabs/tvm-sdk.git', tag = 'v2.0.0.an', features = ['gosh'] }
 
 [dev-dependencies]
 assert_cmd = '2.0.5'

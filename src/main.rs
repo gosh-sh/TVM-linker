@@ -10,7 +10,7 @@
  * See the License for the specific TON DEV software governing permissions and
  * limitations under the License.
  */
-extern crate ton_abi as abi_json;
+extern crate tvm_abi as abi_json;
 extern crate base64;
 #[macro_use]
 extern crate clap;
@@ -26,13 +26,13 @@ extern crate serde;
 extern crate serde_json;
 extern crate sha2;
 extern crate simplelog;
-extern crate ton_block;
-extern crate ton_types;
+extern crate tvm_block;
+extern crate tvm_types;
 #[macro_use]
-extern crate ton_vm;
+extern crate tvm_vm;
 #[macro_use]
 extern crate log;
-extern crate ton_labs_assembler;
+extern crate tvm_assembler;
 extern crate num_traits;
 
 mod abi;
@@ -46,15 +46,13 @@ mod testcall;
 mod disasm;
 
 use std::{env, io::Write, path::Path, fs::File, str::FromStr};
+use std::collections::HashMap;
 use clap::ArgMatches;
-use failure::{format_err, bail};
+use anyhow::{format_err, bail};
 
-use ton_block::{
-    Deserializable, Message, StateInit, Serializable, Account, MsgAddressInt,
-    ExternalInboundMessageHeader, InternalMessageHeader, MsgAddressIntOrNone, ConfigParams
-};
-use ton_types::{SliceData, Result, Status, AccountId, UInt256, BocWriter};
-use ton_labs_assembler::{Line, compile_code_to_cell};
+use tvm_block::{Deserializable, Message, StateInit, Serializable, Account, MsgAddressInt, ExternalInboundMessageHeader, InternalMessageHeader, MsgAddressIntOrNone, ConfigParams, ExtraCurrencyCollection, VarUInteger32};
+use tvm_types::{SliceData, Result, Status, AccountId, UInt256, BocWriter};
+use tvm_assembler::{compile_code_to_cell};
 
 use abi::{build_abi_body, decode_body, load_abi_json_string, load_abi_contract};
 use keyman::KeypairManager;
@@ -64,7 +62,7 @@ use resolver::resolve_name;
 use testcall::{call_contract, MsgInfo, TestCallParams, TraceLevel};
 use disasm::commands::disasm_command;
 
-const DEFAULT_CAPABILITIES: u64 = 0x880116ae; // Default capabilities on the main network
+pub const DEFAULT_CAPABILITIES: u64 = 0x881757AE; // Default capabilities on the main network
 
 fn main() -> std::result::Result<(), i32> {
     linker_main().map_err(|err_str| {
@@ -130,12 +128,14 @@ fn linker_main() -> Status {
             (author: "TON Labs")
             (@arg SOURCE: -s --source +takes_value "Contract source file")
             (@arg BODY: --body +takes_value "Body for external inbound message (a bitstring like x09c_ or a hex string)")
+            (@arg BODY_BASE64: --body_base64 +takes_value "Body for inbound message in base64")
             (@arg BODY_FROM_BOC: --("body-from-boc") +takes_value "Body from message boc file")
             (@arg SIGN: --sign +takes_value "Signs body with private key from defined file")
             (@arg TRACE: --trace "Prints last command name, stack and registers after each executed TVM command")
             (@arg TRACE_MIN: --("trace-minimal") "Prints minimal trace")
             (@arg DECODEC6: --("decode-c6") "Prints last command name, stack and registers after each executed TVM command")
             (@arg INTERNAL: --internal +takes_value "Emulates inbound internal message with value instead of external message")
+            (@arg ECC: --ecc +takes_value "Attach ExtraCurrencyCollection from dictionary to the inbound internal message")
             (@arg BOUNCED: --bounced requires[INTERNAL] "Emulates bounced message, can be used only with --internal option.")
             (@arg BALANCE: --balance +takes_value "Emulates supplied account balance")
             (@arg SRCADDR: --src +takes_value "Supplies message source address")
@@ -256,7 +256,7 @@ fn linker_main() -> Status {
                 .map_err(|e| format_err!("failed to read input file: {}", e))?;
             let cell = compile_code_to_cell(code.as_str())
                 .map_err(|e| format_err!("failed to assemble: {}", e))?;
-            let bytes = ton_types::write_boc(&cell)?;
+            let bytes = tvm_types::write_boc(&cell)?;
             let mut file = File::create(output).unwrap();
             file.write_all(&bytes)?;
             return Ok(())
@@ -377,7 +377,7 @@ fn replace_command(matches: &ArgMatches) -> Status {
     if !path.exists() {
         bail!("File {} doesn't exist", input);
     }
-    sources.push(path.clone());
+    sources.push(path);
 
     let mut prog_opt = None;
     let code = match ParseEngine::new(sources, abi_json) {
@@ -389,7 +389,7 @@ fn replace_command(matches: &ArgMatches) -> Status {
         }
         Err(_) => {
             let data = std::fs::read(path)?;
-            ton_types::read_boc(data)?.withdraw_single_root()?
+            tvm_types::read_boc(data)?.withdraw_single_root()?
         }
     };
 
@@ -495,7 +495,7 @@ fn run_test_subcmd(matches: &ArgMatches) -> Status {
                 None => None
             };
 
-            let line = Line::new(hex_str, "", 0);
+            let line = hex_str;
             let resolved = resolve_name(&line, |name| {
                 let id = match &parse_results {
                     Some(parse_results) => parse_results.global_by_name(name),
@@ -505,11 +505,20 @@ fn run_test_subcmd(matches: &ArgMatches) -> Status {
             })
             .map_err(|e| format_err!("failed to resolve body {}: {}", hex_str, e))?;
 
-            let (buf, buf_bits) = decode_hex_string(resolved.text)?;
+            let (buf, buf_bits) = decode_hex_string(resolved)?;
             let body = SliceData::from_raw(buf, buf_bits);
             (Some(body), Some(matches.value_of("SIGN")))
         },
-        None => (build_body(matches, Some(address.to_string()))?, None),
+        None => {
+            match matches.value_of("BODY_BASE64") {
+                Some(base64_str) => {
+                    println!("base64_str {}", base64_str);
+                    let body = SliceData::construct_from_base64(base64_str).unwrap();
+                    (Some(body), None)
+                }
+                None => (build_body(matches, Some(address.to_string()))?, None)
+            }
+        },
     };
 
     let ticktock = parse_ticktock(matches.value_of("TICKTOCK"))?;
@@ -556,12 +565,24 @@ fn run_test_subcmd(matches: &ArgMatches) -> Status {
     println!("TEST STARTED");
     println!("body = {:?}", body);
 
+    let ecc = if let Some(ecc) = matches.value_of("ECC") {
+        let ecc_map: HashMap<u32, String> = serde_json::from_str(ecc)?;
+        let mut ecc = ExtraCurrencyCollection::new();
+        for (k, v) in ecc_map {
+            ecc.set(&k, &VarUInteger32::from_str(&v)?)?;
+        }
+        Some(ecc)
+    } else {
+        None
+    };
+
     let mut msg_info = MsgInfo {
         balance: matches.value_of("INTERNAL"),
         src: matches.value_of("SRCADDR"),
         now,
         bounced: matches.is_present("BOUNCED"),
         body,
+        ecc,
     };
 
     if let Some(filename) = matches.value_of("BODY_FROM_BOC") {
