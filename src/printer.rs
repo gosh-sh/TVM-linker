@@ -37,7 +37,9 @@ pub fn get_version_mycode_aware(root: Option<&Cell>) -> Result<String> {
 }
 
 pub fn state_init_printer(state: &StateInit) -> String {
-    format!("StateInit\n split_depth: {}\n special: {}\n data: {}\n code: {}\n code_hash: {}\n data_hash: {}\n code_depth: {}\n data_depth: {}\n version: {}\n lib:  {}\n",
+    let serialized_data = state.write_to_bytes().unwrap();
+    format!("StateInit\n serialized_data: {}\n split_depth: {}\n special: {}\n data: {}\n code: {}\n code_hash: {}\n data_hash: {}\n code_depth: {}\n data_depth: {}\n version: {}\n lib:  {}\n",
+        hex::encode(&serialized_data),
         state.split_depth.as_ref().map_or("None".to_string(), |x| x.as_u32().to_string()),
         state.special.as_ref().map_or("None".to_string(), ToString::to_string),
         tree_of_cells_into_base64(state.data.as_ref()),
@@ -77,7 +79,7 @@ pub fn msg_printer(msg: &Message) -> Result<String> {
             None => "None".to_string(),
         },
         msg.body()
-            .map(|b| hex::encode(b.get_bytestring(0)))
+            .map(|b| hex::encode(&write_boc(&b.into_cell()).unwrap()))
             .unwrap_or_else(|| "None".to_string()),
         tree_of_cells_into_base64(
             msg.body()

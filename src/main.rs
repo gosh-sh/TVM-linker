@@ -128,6 +128,7 @@ fn linker_main() -> Status {
             (author: "TON Labs")
             (@arg SOURCE: -s --source +takes_value "Contract source file")
             (@arg BODY: --body +takes_value "Body for external inbound message (a bitstring like x09c_ or a hex string)")
+            (@arg BODY_BASE64: --body_base64 +takes_value "Body for inbound message in base64")
             (@arg BODY_FROM_BOC: --("body-from-boc") +takes_value "Body from message boc file")
             (@arg SIGN: --sign +takes_value "Signs body with private key from defined file")
             (@arg TRACE: --trace "Prints last command name, stack and registers after each executed TVM command")
@@ -508,7 +509,16 @@ fn run_test_subcmd(matches: &ArgMatches) -> Status {
             let body = SliceData::from_raw(buf, buf_bits);
             (Some(body), Some(matches.value_of("SIGN")))
         },
-        None => (build_body(matches, Some(address.to_string()))?, None),
+        None => {
+            match matches.value_of("BODY_BASE64") {
+                Some(base64_str) => {
+                    println!("base64_str {}", base64_str);
+                    let body = SliceData::construct_from_base64(base64_str).unwrap();
+                    (Some(body), None)
+                }
+                None => (build_body(matches, Some(address.to_string()))?, None)
+            }
+        },
     };
 
     let ticktock = parse_ticktock(matches.value_of("TICKTOCK"))?;
